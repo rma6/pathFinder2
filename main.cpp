@@ -453,6 +453,7 @@ void walker(coords ic)
             {
                 cerr << e.what() << endl;
                 runing_threads--;
+                walker(coords(ic.line-1, ic.column, 0, ic.cells+(ic.reg[ic.line-1][ic.column]==0 ?1:0), ic.path, ic.reg));
             }
         }
         else
@@ -473,6 +474,7 @@ void walker(coords ic)
             {
                 cerr << e.what() << endl;
                 runing_threads--;
+                walker(coords(ic.line+1, ic.column, 1, ic.cells+(ic.reg[ic.line+1][ic.column]==0 ?1:0), ic.path, ic.reg));
             }
         }
         else
@@ -493,6 +495,7 @@ void walker(coords ic)
             {
                 cerr << e.what() << endl;
                 runing_threads--;
+                walker(coords(ic.line, ic.column-1, 2, ic.cells+(ic.reg[ic.line][ic.column-1]==0 ?1:0), ic.path, ic.reg));
             }
         }
         else
@@ -513,6 +516,7 @@ void walker(coords ic)
             {
                 cerr << e.what() << endl;
                 runing_threads--;
+                walker(coords(ic.line, ic.column+1, 3, ic.cells+(ic.reg[ic.line][ic.column+1]==0 ?1:0), ic.path, ic.reg));
             }
         }
         else
