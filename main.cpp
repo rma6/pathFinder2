@@ -420,7 +420,7 @@ void walker(coords ic)
             m_dep.unlock();
             return;
         }
-        /*cout << "size: " << ic.path.size() << " path: ";
+        cout << "size: " << ic.path.size() << " path: ";
         for(size_t k=0; k<ic.path.size(); k++)
         {
             cout << ic.path[k];
@@ -434,7 +434,7 @@ void walker(coords ic)
             }
             cout << endl;
         }
-        cout << endl;*/
+        cout << endl;
         solution=ic.path;
         m_dep.unlock();
         return;
@@ -451,7 +451,6 @@ void walker(coords ic)
             }
             catch(exception& e)
             {
-                cerr << e.what() << endl;
                 runing_threads--;
                 walker(coords(ic.line-1, ic.column, 0, ic.cells+(ic.reg[ic.line-1][ic.column]==0 ?1:0), ic.path, ic.reg));
             }
@@ -472,7 +471,6 @@ void walker(coords ic)
             }
             catch(exception& e)
             {
-                cerr << e.what() << endl;
                 runing_threads--;
                 walker(coords(ic.line+1, ic.column, 1, ic.cells+(ic.reg[ic.line+1][ic.column]==0 ?1:0), ic.path, ic.reg));
             }
@@ -493,7 +491,6 @@ void walker(coords ic)
             }
             catch(exception& e)
             {
-                cerr << e.what() << endl;
                 runing_threads--;
                 walker(coords(ic.line, ic.column-1, 2, ic.cells+(ic.reg[ic.line][ic.column-1]==0 ?1:0), ic.path, ic.reg));
             }
@@ -514,7 +511,6 @@ void walker(coords ic)
             }
             catch(exception& e)
             {
-                cerr << e.what() << endl;
                 runing_threads--;
                 walker(coords(ic.line, ic.column+1, 3, ic.cells+(ic.reg[ic.line][ic.column+1]==0 ?1:0), ic.path, ic.reg));
             }
