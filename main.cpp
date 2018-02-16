@@ -395,7 +395,7 @@ void walker(coords ic)
 {
     thread threads[4];
     
-    if((solution.size()!=0 && ic.path.size()>=(size_t)solution.size()) || solution.size()==(size_t)open_cells)
+    if((solution.size()!=0 && ic.path.size()>=(size_t)solution.size()) || solution.size()==(size_t)open_cells) //BnB upper bound
     {
         return;
     }
@@ -409,7 +409,7 @@ void walker(coords ic)
     if(dead_end_vector_position[ic.line][ic.column]!=0 && ic.reg[ic.line][ic.column]<=1) //append dead_ends
     {
         ic.path.insert(ic.path.end(), dead_ends_paths[dead_end_vector_position[ic.line][ic.column]-1].begin(), dead_ends_paths[dead_end_vector_position[ic.line][ic.column]-1].end());
-        ic.cells+=dead_ends_paths[dead_end_vector_position[ic.line][ic.column]-1].size()/2;//checar isso daqui
+        ic.cells+=dead_ends_paths[dead_end_vector_position[ic.line][ic.column]-1].size()/2;
     }
 
     if(ic.cells==open_cells && ic.line==start.line && ic.column==start.column) //caminho completo
@@ -420,6 +420,21 @@ void walker(coords ic)
             m_dep.unlock();
             return;
         }
+        /*cout << "size: " << ic.path.size() << " path: ";
+        for(size_t k=0; k<ic.path.size(); k++)
+        {
+            cout << ic.path[k];
+        }
+        cout << endl << "reg:\n";
+        for(int k=0; k<lines; k++)
+        {
+            for(int l=0; l<columns; l++)
+            {
+                cout << ic.reg[k][l];
+            }
+            cout << endl;
+        }
+        cout << endl;*/
         solution=ic.path;
         m_dep.unlock();
         return;
@@ -442,7 +457,7 @@ void walker(coords ic)
         if(runing_threads<max_threads)
         {
             runing_threads++;
-            threads[1] = thread(thread(walker, coords(ic.line+1, ic.column, 0, ic.cells+(ic.reg[ic.line+1][ic.column]==0 ?1:0), ic.path, ic.reg)));
+            threads[1] = thread(thread(walker, coords(ic.line+1, ic.column, 1, ic.cells+(ic.reg[ic.line+1][ic.column]==0 ?1:0), ic.path, ic.reg)));
         }
         else
         {
@@ -454,7 +469,7 @@ void walker(coords ic)
         if(runing_threads<max_threads)
         {
             runing_threads++;
-            threads[2] = thread(thread(walker, coords(ic.line, ic.column-1, 0, ic.cells+(ic.reg[ic.line][ic.column-1]==0 ?1:0), ic.path, ic.reg)));
+            threads[2] = thread(thread(walker, coords(ic.line, ic.column-1, 2, ic.cells+(ic.reg[ic.line][ic.column-1]==0 ?1:0), ic.path, ic.reg)));
         }
         else
         {
@@ -466,7 +481,7 @@ void walker(coords ic)
         if(runing_threads<max_threads)
         {
             runing_threads++;
-            threads[3] = thread(thread(walker, coords(ic.line, ic.column+1, 0, ic.cells+(ic.reg[ic.line][ic.column+1]==0 ?1:0), ic.path, ic.reg)));
+            threads[3] = thread(thread(walker, coords(ic.line, ic.column+1, 3, ic.cells+(ic.reg[ic.line][ic.column+1]==0 ?1:0), ic.path, ic.reg)));
         }
         else
         {
