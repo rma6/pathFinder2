@@ -444,8 +444,16 @@ void walker(coords ic)
     {
         if(runing_threads<max_threads)
         {
-            runing_threads++;
-            threads[0] = thread(thread(walker, coords(ic.line-1, ic.column, 0, ic.cells+(ic.reg[ic.line-1][ic.column]==0 ?1:0), ic.path, ic.reg)));
+            try
+            {
+                runing_threads++;
+                threads[0] = thread(thread(walker, coords(ic.line-1, ic.column, 0, ic.cells+(ic.reg[ic.line-1][ic.column]==0 ?1:0), ic.path, ic.reg)));
+            }
+            catch(exception& e)
+            {
+                cerr << e.what() << endl;
+                runing_threads--;
+            }
         }
         else
         {
@@ -456,8 +464,16 @@ void walker(coords ic)
     {
         if(runing_threads<max_threads)
         {
-            runing_threads++;
-            threads[1] = thread(thread(walker, coords(ic.line+1, ic.column, 1, ic.cells+(ic.reg[ic.line+1][ic.column]==0 ?1:0), ic.path, ic.reg)));
+            try
+            {
+                runing_threads++;
+                threads[1] = thread(thread(walker, coords(ic.line+1, ic.column, 1, ic.cells+(ic.reg[ic.line+1][ic.column]==0 ?1:0), ic.path, ic.reg)));
+            }
+            catch(exception& e)
+            {
+                cerr << e.what() << endl;
+                runing_threads--;
+            }
         }
         else
         {
@@ -468,8 +484,16 @@ void walker(coords ic)
     {
         if(runing_threads<max_threads)
         {
-            runing_threads++;
-            threads[2] = thread(thread(walker, coords(ic.line, ic.column-1, 2, ic.cells+(ic.reg[ic.line][ic.column-1]==0 ?1:0), ic.path, ic.reg)));
+            try
+            {
+                runing_threads++;
+                threads[2] = thread(thread(walker, coords(ic.line, ic.column-1, 2, ic.cells+(ic.reg[ic.line][ic.column-1]==0 ?1:0), ic.path, ic.reg)));
+            }
+            catch(exception& e)
+            {
+                cerr << e.what() << endl;
+                runing_threads--;
+            }
         }
         else
         {
@@ -480,8 +504,16 @@ void walker(coords ic)
     {
         if(runing_threads<max_threads)
         {
-            runing_threads++;
-            threads[3] = thread(thread(walker, coords(ic.line, ic.column+1, 3, ic.cells+(ic.reg[ic.line][ic.column+1]==0 ?1:0), ic.path, ic.reg)));
+            try
+            {
+                runing_threads++;
+                threads[3] = thread(thread(walker, coords(ic.line, ic.column+1, 3, ic.cells+(ic.reg[ic.line][ic.column+1]==0 ?1:0), ic.path, ic.reg)));
+            }
+            catch(exception& e)
+            {
+                cerr << e.what() << endl;
+                runing_threads--;
+            }
         }
         else
         {
