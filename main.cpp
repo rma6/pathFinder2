@@ -220,7 +220,7 @@ int main(int argc, char* argv[])
     if(ACM[lines-1][0]!=0)
     {
         open_cells++;
-    }    
+    }
     if((ACM[0][columns-1] = CM[0][columns-1]=='0' ? (CM[1][columns-1]=='0'? 1:0)+(CM[0][columns-2]=='0'? 1:0) : 0)==1)
     {
         dead_ends.emplace_back(0, columns-1);
@@ -228,7 +228,7 @@ int main(int argc, char* argv[])
     if(ACM[0][columns-1]!=0)
     {
         open_cells++;
-    }    
+    }
     if((ACM[lines-1][columns-1] = CM[lines-1][columns-1]=='0' ? (CM[lines-2][columns-1]=='0'? 1:0)+(CM[lines-1][columns-2]=='0'? 1:0) : 0)==1)
     {
         dead_ends.emplace_back(lines-1, columns-1);
@@ -313,6 +313,38 @@ int main(int argc, char* argv[])
         S->nrt.wait(S->m_mtx);
         S->m_mtx.unlock();
     }
+
+    for(int i=1; i<lines-1; i++)
+    {
+        for(int j=1; j<columns-1; j++)
+        {
+            if(ACM[i][j]==4)
+            {
+                int t=0;
+                if(CM[i+1][j+1]=='1')
+                {
+                    t++;
+                }
+                if(CM[i+1][j-1]=='1')
+                {
+                    t++;
+                }
+                if(CM[i-1][j+1]=='1')
+                {
+                    t++;
+                }
+                if(CM[i-1][j-1]=='1')
+                {
+                    t++;
+                }
+                if(t==0)
+                {
+                    ACM[i][j]=2;
+                }
+            }
+        }
+    }
+
 
     //add other procedures here
     //if ic is inside dead_end, follow ACM to find the exit TODO:v2
@@ -420,7 +452,7 @@ void walker(coords ic)
             m_dep.unlock();
             return;
         }
-        cout << "size: " << ic.path.size() << " path: ";
+        /*cout << "size: " << ic.path.size() << " path: ";
         for(size_t k=0; k<ic.path.size(); k++)
         {
             cout << ic.path[k];
@@ -434,7 +466,7 @@ void walker(coords ic)
             }
             cout << endl;
         }
-        cout << endl;
+        cout << endl;*/
         solution=ic.path;
         m_dep.unlock();
         return;
