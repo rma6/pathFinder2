@@ -314,6 +314,7 @@ int main(int argc, char* argv[])
         S->m_mtx.unlock();
     }
 
+    //ACM reduction
     for(int i=1; i<lines-1; i++)
     {
         for(int j=1; j<columns-1; j++)
