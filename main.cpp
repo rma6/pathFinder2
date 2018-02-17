@@ -10,6 +10,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <exception>
+#include <chrono>
 
 #define DEFAULT_MAX_THREADS 2
 
@@ -157,6 +158,7 @@ class scheduler
 
 void dead_end_thread(coords);
 void walker(coords);
+void progress();
 
 scheduler* S;
 
@@ -168,6 +170,7 @@ vector<vector<int>> dead_ends_paths;//fixed(can be improved)
 coords start;
 vector<int> solution;//decreasing
 int lines=0, columns=0, open_cells=0, max_threads, runing_threads=0;
+bool isrunning=true;
 
 mutex** nav_mtxs;//fixed
 mutex m_dep;
@@ -351,7 +354,9 @@ int main(int argc, char* argv[])
     //if ic is inside dead_end, follow ACM to find the exit TODO:v2
 
     //pathFinder
+    thread p(progress);
     walker(coords(start.line, start.column, lines, columns, start.line, start.column));
+    isrunning=false;
     //cout << "results have been saved to [arquivo]. \nPress any key to continue...";
     cout << "solution: ";
     for(size_t k=0; k<solution.size(); k++)
@@ -562,4 +567,19 @@ void walker(coords ic)
         }
     }
     return;
+}
+
+void progress()
+{
+    while(isrunning)
+    {
+        m_dep.lock();
+        for(size_t k=0; k<solution.size(); k++)
+        {
+            cout << solution[k];
+        }
+        cout << endl;
+        m_dep.unlock();
+        this_thread::sleep_for(chrono::seconds(60));
+    }
 }
