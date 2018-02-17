@@ -167,10 +167,12 @@ vector<vector<int>> ACM;
 vector<vector<int>> BnB;
 vector<vector<int>> dead_end_vector_position; //fixed(can be improved)
 vector<vector<int>> dead_ends_paths;//fixed(can be improved)
+vector<vector<int>> s_reg;
 coords start;
 vector<int> solution;//decreasing
 int lines=0, columns=0, open_cells=0, max_threads, runing_threads=0;
 bool isrunning=true;
+condition_variable_any pcv;
 
 mutex** nav_mtxs;//fixed
 mutex m_dep;
@@ -355,15 +357,26 @@ int main(int argc, char* argv[])
 
     //pathFinder
     thread p(progress);
+    p.detach();
     walker(coords(start.line, start.column, lines, columns, start.line, start.column));
     isrunning=false;
-    //cout << "results have been saved to [arquivo]. \nPress any key to continue...";
+    pcv.notify_all();
+
     cout << "solution: ";
     for(size_t k=0; k<solution.size(); k++)
     {
         cout << solution[k];
     }
-    cout << endl;
+    cout << endl << "reg: " << endl;
+    for(int k=0; k<lines; k++)
+    {
+        for(int l=0; l<columns; l++)
+        {
+            cout << s_reg[k][l];
+        }
+        cout << endl;
+    }
+    //cout << "results have been saved to [arquivo]. \nPress any key to continue...";
 }
 
 void dead_end_thread(coords ic)
@@ -432,6 +445,8 @@ void dead_end_thread(coords ic)
 void walker(coords ic)
 {
     thread threads[4];
+    int boolc;
+    bool bools[4];
     
     if((solution.size()!=0 && ic.path.size()>=(size_t)solution.size()) || solution.size()==(size_t)open_cells) //BnB upper bound
     {
@@ -458,27 +473,17 @@ void walker(coords ic)
             m_dep.unlock();
             return;
         }
-        /*cout << "size: " << ic.path.size() << " path: ";
-        for(size_t k=0; k<ic.path.size(); k++)
-        {
-            cout << ic.path[k];
-        }
-        cout << endl << "reg:\n";
-        for(int k=0; k<lines; k++)
-        {
-            for(int l=0; l<columns; l++)
-            {
-                cout << ic.reg[k][l];
-            }
-            cout << endl;
-        }
-        cout << endl;*/
         solution=ic.path;
+        s_reg=ic.reg;
         m_dep.unlock();
         return;
     }
-
-    if(ic.line-1>=0 && CM[ic.line-1][ic.column]=='0' && ic.reg[ic.line-1][ic.column]<ACM[ic.line-1][ic.column] && ic.direction!=1)//up:0
+    bools[0]=ic.line-1>=0 && CM[ic.line-1][ic.column]=='0' && ic.reg[ic.line-1][ic.column]==0;
+    bools[1]=ic.line+1<lines && CM[ic.line+1][ic.column]=='0' && ic.reg[ic.line+1][ic.column]==0;
+    bools[2]=ic.column-1>=0 && CM[ic.line][ic.column-1]=='0' && ic.reg[ic.line][ic.column-1]==0;
+    bools[3]=ic.column+1<columns && CM[ic.line][ic.column+1]=='0' && ic.reg[ic.line][ic.column+1]==0;
+    boolc=bools[0]+bools[1]+bools[2]+bools[3];
+    if(ic.line-1>=0 && CM[ic.line-1][ic.column]=='0' && ic.reg[ic.line-1][ic.column]<ACM[ic.line-1][ic.column] && ic.direction!=1 && (boolc==0||bools[0]))//up:0
     {
         if(runing_threads<max_threads)
         {
@@ -498,7 +503,7 @@ void walker(coords ic)
             walker(coords(ic.line-1, ic.column, 0, ic.cells+(ic.reg[ic.line-1][ic.column]==0 ?1:0), ic.path, ic.reg));
         }
     }
-    if(ic.line+1<lines && CM[ic.line+1][ic.column]=='0' && ic.reg[ic.line+1][ic.column]<ACM[ic.line+1][ic.column] && ic.direction!=0)//down:1
+    if(ic.line+1<lines && CM[ic.line+1][ic.column]=='0' && ic.reg[ic.line+1][ic.column]<ACM[ic.line+1][ic.column] && ic.direction!=0 && (boolc==0||bools[1]))//down:1
     {
         if(runing_threads<max_threads)
         {
@@ -518,7 +523,7 @@ void walker(coords ic)
             walker(coords(ic.line+1, ic.column, 1, ic.cells+(ic.reg[ic.line+1][ic.column]==0 ?1:0), ic.path, ic.reg));
         }        
     }
-    if(ic.column-1>=0 && CM[ic.line][ic.column-1]=='0' && ic.reg[ic.line][ic.column-1]<ACM[ic.line][ic.column-1] && ic.direction!=3)//left:2
+    if(ic.column-1>=0 && CM[ic.line][ic.column-1]=='0' && ic.reg[ic.line][ic.column-1]<ACM[ic.line][ic.column-1] && ic.direction!=3 && (boolc==0||bools[2]))//left:2
     {
         if(runing_threads<max_threads)
         {
@@ -538,7 +543,7 @@ void walker(coords ic)
             walker(coords(ic.line, ic.column-1, 2, ic.cells+(ic.reg[ic.line][ic.column-1]==0 ?1:0), ic.path, ic.reg));
         }        
     }
-    if(ic.column+1<columns && CM[ic.line][ic.column+1]=='0' && ic.reg[ic.line][ic.column+1]<ACM[ic.line][ic.column+1] && ic.direction!=2)//right:3
+    if(ic.column+1<columns && CM[ic.line][ic.column+1]=='0' && ic.reg[ic.line][ic.column+1]<ACM[ic.line][ic.column+1] && ic.direction!=2 && (boolc==0||bools[3]))//right:3
     {
         if(runing_threads<max_threads)
         {
@@ -574,12 +579,32 @@ void progress()
     while(isrunning)
     {
         m_dep.lock();
+        pcv.wait_for(m_dep, chrono::seconds(60));
+        if(!isrunning)
+        {
+            m_dep.unlock();
+            return;
+        }
+        if(solution.size()==0)
+        {
+            m_dep.unlock();
+            continue;
+        }
+        cout << "path: ";
         for(size_t k=0; k<solution.size(); k++)
         {
             cout << solution[k];
         }
+        cout << endl << "reg: " << endl;
+        for(int k=0; k<lines; k++)
+        {
+            for(int l=0; l<columns; l++)
+            {
+                cout << s_reg[k][l];
+            }
+            cout << endl;
+        }
         cout << endl;
         m_dep.unlock();
-        this_thread::sleep_for(chrono::seconds(60));
     }
 }
