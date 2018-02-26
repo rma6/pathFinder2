@@ -483,6 +483,14 @@ void walker(coords ic)
     bools[2]=ic.column-1>=0 && CM[ic.line][ic.column-1]=='0' && ic.reg[ic.line][ic.column-1]==0;
     bools[3]=ic.column+1<columns && CM[ic.line][ic.column+1]=='0' && ic.reg[ic.line][ic.column+1]==0;
     boolc=bools[0]+bools[1]+bools[2]+bools[3];
+
+    //calcular adjacencia
+    int adj=(ic.line-1>=0 && ic.reg[ic.line-1][ic.column]==0)+(ic.line+1<lines && ic.reg[ic.line+1][ic.column]==0)+(ic.column-1>=0 && ic.reg[ic.line][ic.column-1]==0)+(ic.column+1>columns && ic.reg[ic.line][ic.column+1]==0);
+    if(ic.reg[ic.line][ic.column]==1 && adj==0)
+    {
+        ic.direction=-1;
+    }
+
     if(ic.line-1>=0 && CM[ic.line-1][ic.column]=='0' && ic.reg[ic.line-1][ic.column]<ACM[ic.line-1][ic.column] && ic.direction!=1 && (boolc==0||bools[0]))//up:0
     {
         if(runing_threads<max_threads)
