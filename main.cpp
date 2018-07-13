@@ -11,8 +11,9 @@
 #include <condition_variable>
 #include <exception>
 #include <chrono>
+#include "omp.h"
 
-#define DEFAULT_MAX_THREADS 2
+#define DEFAULT_MAX_THREADS 4
 
 using namespace std;
 
@@ -35,16 +36,17 @@ class coords
         reg=f;
     }
 
-    coords(int a=0, int b=0, int l=0, int c=0, int sl=0, int sc=0)
+    coords(int a=0, int b=0, int l=0, int c=0, int sl=0, int sc=0, int cc=0, vector<int> pre=vector<int>()) //for main
     {
         line=a;
         column=b;
         direction=-1;
-        cells=0;
+        cells=cc;
+        path=pre;
         reg=vector<vector<int>>(l, vector<int>(c));
         if(l!=0 && c!=0)
         {
-            reg[sl][sc]=-1;
+            reg[sl][sc]=-1; //thats for free cell preference
         }
     }
 
@@ -60,118 +62,22 @@ class coords
     }
 };
 
-class scheduler
-{
-    private:
-    queue<void (*)(coords)> functions;
-    queue<coords> parameters;
-    int runing_threads, scheduled_threads, dispatched_threads;
-    mutex m;
-
-    template <class T> void clear( queue<T> &q )
-    {
-    std::queue<T> empty;
-    std::swap( q, empty );
-    }
-
-    public:
-    int max_threads;
-    condition_variable_any nrt; 
-    mutex m_mtx;
-
-    scheduler(int mt)
-    {
-        max_threads=mt;
-        runing_threads=0;
-        scheduled_threads=0;
-        dispatched_threads=0;
-    }
-
-    ~scheduler()
-    {
-        clear<void (*)(coords)>(functions);
-        clear<coords>(parameters);
-    }
-
-    void set_scheduled_threads(int a)
-    {
-        scheduled_threads=a;
-        dispatched_threads=0;
-    }
-
-    void overwrite_scheduled_threads(int a)
-    {
-        m.lock();
-        scheduled_threads+=a;
-        m.unlock();
-    }
-
-    void schedule(void (*f)(coords), coords c)
-    {
-        m.lock();
-        if(runing_threads<max_threads)
-        {
-            runing_threads++;
-            thread t(f, c);
-            t.detach();
-        }
-        else
-        {
-            functions.push(f);
-            parameters.push(c);            
-        }
-        m.unlock();
-    }
-
-    void dispatch()
-    {
-        m.lock();
-        runing_threads--;
-        dispatched_threads++;
-        if(parameters.size()>0)
-        {
-            runing_threads++;
-            thread t(functions.front(), parameters.front());
-            t.detach();
-            functions.pop();
-            parameters.pop();            
-        }
-        if(threads_completed()) nrt.notify_one();
-        m.unlock();
-    }
-
-    bool threads_completed()
-    {
-        return dispatched_threads==scheduled_threads ? true : false;
-    }
-
-    bool free_threads()
-    {
-        return (runing_threads<max_threads);
-    }
-
-    void print_thread_info()
-    {
-        cout << "st: " << scheduled_threads << " rt: " << runing_threads << " dp: " << dispatched_threads << " queued_t: " << scheduled_threads-dispatched_threads << endl;
-    }
-};
 
 void dead_end_thread(coords);
+int dead_end_sc(coords ic);
 void walker(coords);
 void progress();
 
-scheduler* S;
 
 vector<string> CM;
 vector<vector<int>> ACM;
-vector<vector<int>> BnB;
-vector<vector<int>> dead_end_vector_position; //fixed(can be improved)
-vector<vector<int>> dead_ends_paths;//fixed(can be improved)
+vector<vector<int>> dead_end_vector_position;
+vector<vector<int>> dead_ends_paths;
 vector<vector<int>> s_reg;
 coords start;
-vector<int> solution;//decreasing
-int lines=0, columns=0, open_cells=0, max_threads, runing_threads=0;
-bool isrunning=true;
+vector<int> solution, de_append, de_preppend;//de_append: path to append in case the starting cell is in a dead end
+int lines=0, columns=0, open_cells=0, max_threads, runing_threads=0, sc, scide=0; //scide: starting cell in dead_end
+bool isrunning=true, dece=false; //dece: dead_end conditional enable
 condition_variable_any pcv;
 
 mutex** nav_mtxs;//fixed
@@ -179,7 +85,6 @@ mutex m_dep;
 
 int main(int argc, char* argv[])
 {
-    S=new scheduler(argc>1 ? stoi(argv[1]) : DEFAULT_MAX_THREADS);
     max_threads=argc>1 ? stoi(argv[1]) : DEFAULT_MAX_THREADS;
     vector<coords> dead_ends; //dead_ends
 
@@ -195,9 +100,9 @@ int main(int argc, char* argv[])
     CM.erase(CM.begin());
 
 
-    //conversion
+    //conversion and inicialization
     ACM.resize(lines);
-    BnB.resize(lines);
+    s_reg.resize(lines);
     dead_end_vector_position.resize(lines);
     nav_mtxs  = (mutex**)malloc(sizeof(mutex*)*lines);
     columns=CM[0].size();
@@ -206,7 +111,7 @@ int main(int argc, char* argv[])
         dead_end_vector_position[i].resize(columns);
         nav_mtxs [i] = (mutex*)malloc(sizeof(mutex)*columns);
         ACM[i].resize(columns);
-        BnB[i].resize(columns);
+        s_reg[i].resize(columns);
     }
     
     //corners
@@ -243,7 +148,7 @@ int main(int argc, char* argv[])
         open_cells++;
     }
 
-    //edges
+    //edges        
     for(int i=0, j=1; j<columns-1; j++)
     {
         if((ACM[i][j] = CM[i][j]=='0' ? ((CM[i+1][j]=='0'? 1:0)+(CM[i][j+1]=='0'? 1:0)+(CM[i][j-1]=='0'? 1:0)) : 0)==1)
@@ -255,6 +160,7 @@ int main(int argc, char* argv[])
             open_cells++;
         }
     }
+    
     for(int i=lines-1, j=1; j<columns-1; j++)
     {
         if((ACM[i][j] = CM[i][j]=='0' ? ((CM[i-1][j]=='0'? 1:0)+(CM[i][j+1]=='0'? 1:0)+(CM[i][j-1]=='0'? 1:0)) : 0)==1)
@@ -307,19 +213,19 @@ int main(int argc, char* argv[])
 
 
     //dead-ends
-    S->set_scheduled_threads(dead_ends.size());
+    #pragma omp parallel for num_threads(max_threads)
     for(size_t i=0; i<dead_ends.size(); i++)
     {
-        S->schedule(dead_end_thread, dead_ends[i]);
+        dead_end_thread(dead_ends[i]);
     }
-    if(dead_ends.size()>0)
+    if(scide==2)
     {
-        S->m_mtx.lock();//avoid undefined behavior
-        S->nrt.wait(S->m_mtx);
-        S->m_mtx.unlock();
+        dece=true;
+        sc = dead_end_sc(coords(start.line, start.column, lines, columns, start.line, start.column));
     }
 
-    //ACM reduction
+    //ACM reduction: sets max visits to a cell based on its diagonals
+    #pragma omp parallel for num_threads(max_threads)
     for(int i=1; i<lines-1; i++)
     {
         for(int j=1; j<columns-1; j++)
@@ -353,12 +259,12 @@ int main(int argc, char* argv[])
 
 
     //add other procedures here
-    //if ic is inside dead_end, follow ACM to find the exit TODO:v2
 
     //pathFinder
     thread p(progress);
-    p.detach();
-    walker(coords(start.line, start.column, lines, columns, start.line, start.column));
+    p.detach(); //progress saver
+
+    walker(coords(start.line, start.column, lines, columns, start.line, start.column, sc, de_preppend));
     isrunning=false;
     pcv.notify_all();
 
@@ -376,7 +282,7 @@ int main(int argc, char* argv[])
         }
         cout << endl;
     }
-    //cout << "results have been saved to [arquivo]. \nPress any key to continue...";
+    return 0;
 }
 
 void dead_end_thread(coords ic)
@@ -386,11 +292,19 @@ void dead_end_thread(coords ic)
     while(true)
     {
         nav_mtxs[i][j].lock();
-        if(ACM[i][j]<3)
+        if(i==start.line && j==start.column && ACM[i][j]<3)
+        {
+            scide=2;
+        }
+        else if(i==start.line && j==start.column && scide<=2)
+        {
+            scide+=1;
+        }
+        if(ACM[i][j]<3 && !(i==start.line && j==start.column))
         {
             int ti=i, tj=j;//values of i,j before updating
             CM[i][j]='1';
-            if(dead_end_vector_position[i][j]!=0)
+            if(dead_end_vector_position[i][j]!=0) //if some dead_end reaches this cell, append its path to this
             {
                 path.insert(path.begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].end());
             }
@@ -436,8 +350,70 @@ void dead_end_thread(coords ic)
             dead_end_vector_position[i][j]=dead_ends_paths.size();
             m_dep.unlock();
             nav_mtxs[i][j].unlock();
-            S->dispatch();
             return;
+        }
+    }
+}
+
+int dead_end_sc(coords ic)
+{
+    int i=ic.line, j=ic.column;
+    vector<int> spath, path; //spath: path with return for cell count calculations, path: path without return to be appended in the solution path
+    while(true)
+    {
+        if(ACM[i][j]<3)
+        {
+            int ti=i, tj=j;//values of i,j before updating
+            CM[i][j]='1';
+            if(dead_end_vector_position[i][j]!=0) //if some dead_end reaches this cell, append its path to this
+            {
+                spath.insert(spath.begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].end());
+                path.insert(path.begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].end());
+            }
+            if(i-1>=0 && CM[i-1][j]=='0')//up:0
+            {
+                i--;
+                de_preppend.push_back(0);
+                spath.push_back(0);
+                spath.insert(spath.begin(), 1);
+                path.insert(path.begin(), 1);
+                ACM[ti][tj]=0;
+            }
+            else if(i+1<lines && CM[i+1][j]=='0')//down:1
+            {
+                i++;
+                de_preppend.push_back(1);
+                spath.push_back(1);
+                spath.insert(spath.begin(), 0);
+                path.insert(path.begin(), 0);
+                ACM[ti][tj]=1;
+            }
+            else if(j-1>=0 && CM[i][j-1]=='0')//left:2
+            {
+                j--;
+                de_preppend.push_back(2);
+                spath.push_back(2);
+                spath.insert(spath.begin(), 3);
+                path.insert(path.begin(), 3);
+                ACM[ti][tj]=2;
+            }
+            else//right:3
+            {
+                j++;
+                de_preppend.push_back(3);
+                spath.push_back(3);
+                spath.insert(spath.begin(), 2);
+                path.insert(path.begin(), 2);
+                ACM[ti][tj]=3;
+            }
+        }
+        else
+        {
+            ACM[i][j]--;
+            start.line=i;
+            start.column=j;
+            de_append=path;
+            return spath.size()/2;
         }
     }
 }
@@ -459,7 +435,7 @@ void walker(coords ic)
         ic.path.push_back(ic.direction);
     }
 
-    if(dead_end_vector_position[ic.line][ic.column]!=0 && ic.reg[ic.line][ic.column]<=1) //append dead_ends
+    if(dead_end_vector_position[ic.line][ic.column]!=0 && ic.reg[ic.line][ic.column]==1 && ic.path.size()!=de_preppend.size()) //append dead_ends
     {
         ic.path.insert(ic.path.end(), dead_ends_paths[dead_end_vector_position[ic.line][ic.column]-1].begin(), dead_ends_paths[dead_end_vector_position[ic.line][ic.column]-1].end());
         ic.cells+=dead_ends_paths[dead_end_vector_position[ic.line][ic.column]-1].size()/2;
@@ -468,25 +444,27 @@ void walker(coords ic)
     if(ic.cells==open_cells && ic.line==start.line && ic.column==start.column) //caminho completo
     {
         m_dep.lock();
-        if(solution.size()!=0 && ic.path.size()>=(size_t)solution.size())
+        if(solution.size()!=0 && ic.path.size()>=(size_t)solution.size()) //false positive
         {
             m_dep.unlock();
             return;
         }
+        ic.path.insert(ic.path.end(), de_append.begin(), de_append.end());
         solution=ic.path;
         s_reg=ic.reg;
         m_dep.unlock();
         return;
     }
+
     bools[0]=ic.line-1>=0 && CM[ic.line-1][ic.column]=='0' && ic.reg[ic.line-1][ic.column]==0;
     bools[1]=ic.line+1<lines && CM[ic.line+1][ic.column]=='0' && ic.reg[ic.line+1][ic.column]==0;
     bools[2]=ic.column-1>=0 && CM[ic.line][ic.column-1]=='0' && ic.reg[ic.line][ic.column-1]==0;
     bools[3]=ic.column+1<columns && CM[ic.line][ic.column+1]=='0' && ic.reg[ic.line][ic.column+1]==0;
-    boolc=bools[0]+bools[1]+bools[2]+bools[3];
+    boolc=bools[0]+bools[1]+bools[2]+bools[3]; //gives preference to never visited cells
 
     //calcular adjacencia
     int adj=(ic.line-1>=0 && ic.reg[ic.line-1][ic.column]==0)+(ic.line+1<lines && ic.reg[ic.line+1][ic.column]==0)+(ic.column-1>=0 && ic.reg[ic.line][ic.column-1]==0)+(ic.column+1>columns && ic.reg[ic.line][ic.column+1]==0);
-    if(ic.reg[ic.line][ic.column]==1 && adj==0)
+    if(ic.reg[ic.line][ic.column]==1 && adj==0) //if it is the first time a cell is being visited, it has the right to return in the opposite direction
     {
         ic.direction=-1;
     }
@@ -571,7 +549,8 @@ void walker(coords ic)
             walker(coords(ic.line, ic.column+1, 3, ic.cells+(ic.reg[ic.line][ic.column+1]==0 ?1:0), ic.path, ic.reg));
         }        
     }
-    for(size_t i=0; i<4; i++)
+
+    for(size_t i=0; i<4; i++)//join threads
     {
         if(threads[i].joinable())
         {
