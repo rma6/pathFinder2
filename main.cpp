@@ -46,7 +46,7 @@ class coords
         reg=vector<vector<int>>(l, vector<int>(c));
         if(l!=0 && c!=0)
         {
-            reg[sl][sc]=-1; //thats for free cell preference
+            reg[sl][sc]=-1; //-1 is for free cell preference
         }
     }
 
@@ -64,7 +64,7 @@ class coords
 
 
 void dead_end_thread(coords);
-int dead_end_sc(coords ic);
+int dead_end_sc(coords);
 void walker(coords);
 void progress();
 
@@ -73,11 +73,10 @@ vector<string> CM;
 vector<vector<int>> ACM;
 vector<vector<int>> dead_end_vector_position;
 vector<vector<int>> dead_ends_paths;
-vector<vector<int>> s_reg;
 coords start;
 vector<int> solution, de_append, de_preppend;//de_append: path to append in case the starting cell is in a dead end
-int lines=0, columns=0, open_cells=0, max_threads, runing_threads=0, sc, scide=0; //scide: starting cell in dead_end
-bool isrunning=true, dece=false; //dece: dead_end conditional enable
+int lines=0, columns=0, open_cells=0, max_threads, runing_threads=0, sc, scide=0; //sc:number of cells pre-travelles cells; scide: starting cell in dead_end
+bool isrunning=true;
 condition_variable_any pcv;
 
 mutex** nav_mtxs;//fixed
@@ -102,7 +101,6 @@ int main(int argc, char* argv[])
 
     //conversion and inicialization
     ACM.resize(lines);
-    s_reg.resize(lines);
     dead_end_vector_position.resize(lines);
     nav_mtxs  = (mutex**)malloc(sizeof(mutex*)*lines);
     columns=CM[0].size();
@@ -111,7 +109,6 @@ int main(int argc, char* argv[])
         dead_end_vector_position[i].resize(columns);
         nav_mtxs [i] = (mutex*)malloc(sizeof(mutex)*columns);
         ACM[i].resize(columns);
-        s_reg[i].resize(columns);
     }
     
     //corners
@@ -119,33 +116,17 @@ int main(int argc, char* argv[])
     {
         dead_ends.emplace_back(0, 0);
     }
-    if(ACM[0][0]!=0)
-    {
-        open_cells++;
-    }
     if((ACM[lines-1][0] = CM[lines-1][0]=='0' ? (CM[lines-2][0]=='0'? 1:0)+(CM[lines-1][1]=='0'? 1:0) : 0)==1)
     {
         dead_ends.emplace_back(lines-1, 0);
-    }
-    if(ACM[lines-1][0]!=0)
-    {
-        open_cells++;
     }
     if((ACM[0][columns-1] = CM[0][columns-1]=='0' ? (CM[1][columns-1]=='0'? 1:0)+(CM[0][columns-2]=='0'? 1:0) : 0)==1)
     {
         dead_ends.emplace_back(0, columns-1);
     }
-    if(ACM[0][columns-1]!=0)
-    {
-        open_cells++;
-    }
     if((ACM[lines-1][columns-1] = CM[lines-1][columns-1]=='0' ? (CM[lines-2][columns-1]=='0'? 1:0)+(CM[lines-1][columns-2]=='0'? 1:0) : 0)==1)
     {
         dead_ends.emplace_back(lines-1, columns-1);
-    }
-    if(ACM[lines-1][columns-1]!=0)
-    {
-        open_cells++;
     }
 
     //edges        
@@ -155,21 +136,12 @@ int main(int argc, char* argv[])
         {
             dead_ends.emplace_back(i, j);
         }
-        if(ACM[i][j]!=0)
-        {
-            open_cells++;
-        }
     }
-    
     for(int i=lines-1, j=1; j<columns-1; j++)
     {
         if((ACM[i][j] = CM[i][j]=='0' ? ((CM[i-1][j]=='0'? 1:0)+(CM[i][j+1]=='0'? 1:0)+(CM[i][j-1]=='0'? 1:0)) : 0)==1)
         {
             dead_ends.emplace_back(i, j);
-        }
-        if(ACM[i][j]!=0)
-        {
-            open_cells++;
         }
     }
     for(int i=1, j=0; i<lines-1; i++)
@@ -178,20 +150,12 @@ int main(int argc, char* argv[])
         {
             dead_ends.emplace_back(i, j);
         }
-        if(ACM[i][j]!=0)
-        {
-            open_cells++;
-        }
     }
     for(int i=1, j=columns-1; i<lines-1; i++)
     {
         if((ACM[i][j] = CM[i][j]=='0' ? ((CM[i+1][j]=='0'? 1:0)+(CM[i-1][j]=='0'? 1:0)+(CM[i][j-1]=='0'? 1:0)) : 0)==1)
         {
             dead_ends.emplace_back(i, j);
-        }
-        if(ACM[i][j]!=0)
-        {
-            open_cells++;
         }
     }
 
@@ -204,6 +168,14 @@ int main(int argc, char* argv[])
             {
                 dead_ends.emplace_back(i, j);
             }
+        }
+    }
+
+    //open cells
+    for(int i=0; i<lines; i++)
+    {
+        for(int j=0; j<columns; j++)
+        {
             if(ACM[i][j]!=0)
             {
                 open_cells++;
@@ -220,12 +192,10 @@ int main(int argc, char* argv[])
     }
     if(scide==2)
     {
-        dece=true;
         sc = dead_end_sc(coords(start.line, start.column, lines, columns, start.line, start.column));
     }
 
     //ACM reduction: sets max visits to a cell based on its diagonals
-    #pragma omp parallel for num_threads(max_threads)
     for(int i=1; i<lines-1; i++)
     {
         for(int j=1; j<columns-1; j++)
@@ -257,7 +227,6 @@ int main(int argc, char* argv[])
         }
     }
 
-
     //add other procedures here
 
     //pathFinder
@@ -272,15 +241,6 @@ int main(int argc, char* argv[])
     for(size_t k=0; k<solution.size(); k++)
     {
         cout << solution[k];
-    }
-    cout << endl << "reg: " << endl;
-    for(int k=0; k<lines; k++)
-    {
-        for(int l=0; l<columns; l++)
-        {
-            cout << s_reg[k][l];
-        }
-        cout << endl;
     }
     return 0;
 }
@@ -300,51 +260,42 @@ void dead_end_thread(coords ic)
         {
             scide+=1;
         }
+        if(dead_end_vector_position[i][j]!=0) //if some dead_end reaches this cell, append its path to this
+        {
+            path.insert(path.end(), dead_ends_paths[dead_end_vector_position[i][j]-1].begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].end());
+        }
         if(ACM[i][j]<3 && !(i==start.line && j==start.column))
         {
             int ti=i, tj=j;//values of i,j before updating
             CM[i][j]='1';
-            if(dead_end_vector_position[i][j]!=0) //if some dead_end reaches this cell, append its path to this
-            {
-                path.insert(path.begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].end());
-            }
             if(i-1>=0 && CM[i-1][j]=='0')//up:0
             {
                 i--;
                 path.push_back(0);
                 path.insert(path.begin(), 1);
-                ACM[ti][tj]=0;
             }
             else if(i+1<lines && CM[i+1][j]=='0')//down:1
             {
                 i++;
                 path.push_back(1);
                 path.insert(path.begin(), 0);
-                ACM[ti][tj]=1;
             }
             else if(j-1>=0 && CM[i][j-1]=='0')//left:2
             {
                 j--;
                 path.push_back(2);
                 path.insert(path.begin(), 3);
-                ACM[ti][tj]=2;
             }
             else//right:3
             {
                 j++;
                 path.push_back(3);
                 path.insert(path.begin(), 2);
-                ACM[ti][tj]=3;
             }
             nav_mtxs[ti][tj].unlock();
         }
-        else
-        {
+        else        {
             ACM[i][j]--;
-            if(dead_end_vector_position[i][j]!=0)
-            {
-                path.insert(path.begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].end());
-            }
             m_dep.lock();
             dead_ends_paths.push_back(path);
             dead_end_vector_position[i][j]=dead_ends_paths.size();
@@ -357,54 +308,45 @@ void dead_end_thread(coords ic)
 
 int dead_end_sc(coords ic)
 {
-    int i=ic.line, j=ic.column;
-    vector<int> spath, path; //spath: path with return for cell count calculations, path: path without return to be appended in the solution path
+    int i=ic.line, j=ic.column, spath=0;
+    vector<int> path; //spath: path with return for cell count calculations, path: path without return to be appended in the solution path
     while(true)
     {
         if(ACM[i][j]<3)
         {
-            int ti=i, tj=j;//values of i,j before updating
             CM[i][j]='1';
             if(dead_end_vector_position[i][j]!=0) //if some dead_end reaches this cell, append its path to this
             {
-                spath.insert(spath.begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].end());
+                spath += dead_ends_paths[dead_end_vector_position[i][j]-1].size();
                 path.insert(path.begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].begin(), dead_ends_paths[dead_end_vector_position[i][j]-1].end());
             }
             if(i-1>=0 && CM[i-1][j]=='0')//up:0
             {
                 i--;
                 de_preppend.push_back(0);
-                spath.push_back(0);
-                spath.insert(spath.begin(), 1);
+                spath+=2;
                 path.insert(path.begin(), 1);
-                ACM[ti][tj]=0;
             }
             else if(i+1<lines && CM[i+1][j]=='0')//down:1
             {
                 i++;
                 de_preppend.push_back(1);
-                spath.push_back(1);
-                spath.insert(spath.begin(), 0);
+                spath+=2;
                 path.insert(path.begin(), 0);
-                ACM[ti][tj]=1;
             }
             else if(j-1>=0 && CM[i][j-1]=='0')//left:2
             {
                 j--;
                 de_preppend.push_back(2);
-                spath.push_back(2);
-                spath.insert(spath.begin(), 3);
+                spath+=2;
                 path.insert(path.begin(), 3);
-                ACM[ti][tj]=2;
             }
             else//right:3
             {
                 j++;
                 de_preppend.push_back(3);
-                spath.push_back(3);
-                spath.insert(spath.begin(), 2);
+                spath+=2;
                 path.insert(path.begin(), 2);
-                ACM[ti][tj]=3;
             }
         }
         else
@@ -413,7 +355,7 @@ int dead_end_sc(coords ic)
             start.line=i;
             start.column=j;
             de_append=path;
-            return spath.size()/2;
+            return spath/2;
         }
     }
 }
@@ -451,7 +393,6 @@ void walker(coords ic)
         }
         ic.path.insert(ic.path.end(), de_append.begin(), de_append.end());
         solution=ic.path;
-        s_reg=ic.reg;
         m_dep.unlock();
         return;
     }
@@ -583,14 +524,6 @@ void progress()
             cout << solution[k];
         }
         cout << endl << "reg: " << endl;
-        for(int k=0; k<lines; k++)
-        {
-            for(int l=0; l<columns; l++)
-            {
-                cout << s_reg[k][l];
-            }
-            cout << endl;
-        }
         cout << endl;
         m_dep.unlock();
     }
